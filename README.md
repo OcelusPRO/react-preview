@@ -9,7 +9,7 @@ Each branch is compiled and served under a specific sub-directory, allowing simu
 
 ## 🚀 How it works
 
-1. **Synchronization**: A script (`sync.sh`) monitors the configured Git repository every 120 seconds.
+1. **Synchronization**: A script (`sync.sh`) monitors the configured Git repository every 120 seconds (configurable via `INTERVAL_SECONDS`).
 2. **Automatic Build**: For each branch (can be filtered by regex), the script:
    - Installs dependencies with `npm ci`.
    - Compiles the application with `npm run build` by injecting the correct `VITE_BASE_PATH`.
@@ -29,6 +29,7 @@ The container can be configured in two ways: via environment variables (for a si
 | `DOMAIN` | Domain name (mandatory) | `preview.my-site.com`                      |
 | `BASE_PATH` | Base URL path prefix | `app` or `/`                               |
 | `BRANCH_REGEX` | (Optional) Regex to filter branches | `^(master\|dev)$`                          |
+| `INTERVAL_SECONDS` | (Optional) Time between syncs (sec) | `60` (Default: 120)                       |
 
 ### Multiple Projects Mode (JSON File)
 
