@@ -20,12 +20,12 @@ The container can be configured in two ways: via environment variables (for a si
 
 ### Single Project Mode (Environment Variables)
 
-| Variable | Description | Example |
-| :--- | :--- | :--- |
+| Variable | Description | Example                                    |
+| :--- | :--- |:-------------------------------------------|
 | `REPO_URL` | Git repository URL (HTTPS) | `https://github.com/user/my-react-app.git` |
-| `DOMAIN` | Domain name (mandatory) | `preview.my-site.com` |
-| `BASE_PATH` | Base URL path prefix | `app` or `/` |
-| `BRANCH_REGEX` | (Optional) Regex to filter branches | `^(master|dev)$` |
+| `DOMAIN` | Domain name (mandatory) | `preview.my-site.com`                      |
+| `BASE_PATH` | Base URL path prefix | `app` or `/`                               |
+| `BRANCH_REGEX` | (Optional) Regex to filter branches | `^(master\|dev)$`                          |
 
 ### Multiple Projects Mode (JSON File)
 
