@@ -16,25 +16,42 @@ Each branch is compiled and served under a specific sub-directory, allowing simu
 
 ## 🛠️ Configuration
 
-The container is configured via mandatory environment variables:
+The container can be configured in two ways: via environment variables (for a single project) or via a JSON file (for multiple projects).
+
+### Single Project Mode (Environment Variables)
 
 | Variable | Description | Example |
 | :--- | :--- | :--- |
 | `REPO_URL` | Git repository URL (HTTPS) | `https://github.com/user/my-react-app.git` |
-| `DOMAIN` | Domain name used (for logs/links) | `preview.my-site.com` |
+| `DOMAIN` | Domain name (mandatory) | `preview.my-site.com` |
 | `BASE_PATH` | Base URL path prefix | `app` or `/` |
+| `BRANCH_REGEX` | (Optional) Regex to filter branches | `^(master|dev)$` |
 
-Optional variables:
+### Multiple Projects Mode (JSON File)
 
-| Variable | Description                                                                                                                                       | Default |
-| :--- |:--------------------------------------------------------------------------------------------------------------------------------------------------| :--- |
-| `BRANCH_REGEX` | Regex to filter branches to deploy (e.g., `^(master\|dev\|feature/.*)$` to deploy dev, master or feature/ branches) | (All branches) |
+To manage multiple Git repositories simultaneously, mount a `projects.json` file at `/projects.json`.
+The `DOMAIN` variable must still be defined in the environment.
+
+Example `projects.json`:
+```json
+[
+  {
+    "REPO_URL": "https://github.com/user/project-1.git",
+    "BASE_PATH": "app1",
+    "BRANCH_REGEX": "^master$"
+  },
+  {
+    "REPO_URL": "https://github.com/user/project-2.git",
+    "BASE_PATH": "app2"
+  }
+]
+```
 
 ## 📦 Usage with Docker
 
 The Docker image is available on Docker Hub as `ocelus/react-preview`.
 
-### Run with Docker Run
+### Run with Docker Run (Single Project)
 
 ```bash
 docker run -d \
@@ -46,7 +63,7 @@ docker run -d \
   ocelus/react-preview
 ```
 
-### Docker Compose Example
+### Run with Docker Compose (Multiple Projects)
 
 ```yaml
 version: '3.8'
@@ -57,11 +74,9 @@ services:
     ports:
       - "8080:80"
     environment:
-      - REPO_URL=https://github.com/my-org/my-react-project.git
       - DOMAIN=preview.mydomain.com
-      - BASE_PATH=projects
-      - BRANCH_REGEX=^(dev|master|features/) # Optional: dev, master and features/
     volumes:
+      - ./projects.json:/projects.json:ro
       - preview_data:/var/www/html
     restart: always
 
@@ -71,13 +86,15 @@ volumes:
 
 ## 📝 Project Structure
 
-- `Dockerfile`: Based on Node 20 Alpine, installs Git, Nginx, and Gettext.
-- `sync.sh`: Main script for synchronization, build, and cleanup.
-- `nginx.conf.template`: Nginx template configured to support SPA routing on dynamic sub-paths.
+- `Dockerfile`: Based on Node 20 Alpine, installs Git, Nginx, JQ and Gettext.
+- `sync.sh`: Main script for synchronization, build, and index generation.
+- `nginx.conf.template`: Nginx configuration supporting dynamic SPA routing.
 
 ## 🔗 Environment Access
 
 Once deployed, branches are accessible via:
 `https://${DOMAIN}/${BASE_PATH}/${branch-name}/`
+
+An index page is automatically created at `https://${DOMAIN}/${BASE_PATH}/` listing all active deployments for that path.
 
 *Note: Branch names are normalized (converted to lowercase, special characters replaced by dashes).*

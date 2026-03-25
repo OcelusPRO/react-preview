@@ -4,7 +4,9 @@ server {
     root /var/www/html;
     index index.html;
 
-    location ~ ^(?<app_base>${BASE_PATH}/[a-zA-Z0-9-]+)(/.*)?$ {
+    # SPA routing: matches /BASE_PATH/BRANCH/path
+    # The regex captures the base path and branch name to serve the correct index.html
+    location ~ ^(?<app_base>(/.+)?/[a-z0-9-]+)(/.*)?$ {
         try_files $uri $uri/ $app_base/index.html;
     }
 
