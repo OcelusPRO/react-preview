@@ -41,5 +41,5 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
           repository: ocelus/react-preview
-          short-description: "Déploiement automatique d'environnements de prévisualisation React."
+          short-description: "Automatic deployment of React preview environments."
           readme-filepath: ./README.md

@@ -1,44 +1,44 @@
 # React Preview
 
-Ce projet permet de déployer automatiquement des environnements de prévisualisation (preview) pour chaque branche d'un dépôt Git contenant une application React (conçue avec Vite). 
+This project allows automatic deployment of preview environments for each branch of a Git repository containing a React application (designed with Vite). 
 
-Chaque branche est compilée et servie sous un sous-répertoire spécifique, permettant ainsi d'accéder à plusieurs versions de l'application simultanément.
+Each branch is compiled and served under a specific sub-directory, allowing simultaneous access to multiple versions of the application.
 
-## 🚀 Fonctionnement
+## 🚀 How it works
 
-1. **Synchronisation** : Un script (`sync.sh`) surveille le dépôt Git configuré toutes les 120 secondes.
-2. **Build Automatique** : Pour chaque branche (pouvant être filtrée par regex), le script :
-   - Installe les dépendances avec `npm ci`.
-   - Compile l'application avec `npm run build` en injectant le bon `VITE_BASE_PATH`.
-3. **Déploiement** : Les fichiers compilés sont placés dans `/var/www/html/${BASE_PATH}/${branch_name}`.
-4. **Service Web** : Nginx sert les fichiers et gère le routage SPA (History API) pour chaque environnement.
-5. **Nettoyage** : Les environnements correspondant à des branches supprimées sur le dépôt distant sont automatiquement effacés du serveur.
+1. **Synchronization**: A script (`sync.sh`) monitors the configured Git repository every 120 seconds.
+2. **Automatic Build**: For each branch (can be filtered by regex), the script:
+   - Installs dependencies with `npm ci`.
+   - Compiles the application with `npm run build` by injecting the correct `VITE_BASE_PATH`.
+3. **Deployment**: Compiled files are placed in `/var/www/html/${BASE_PATH}/${branch_name}`.
+4. **Web Service**: Nginx serves the files and handles SPA routing (History API) for each environment.
+5. **Cleanup**: Environments corresponding to branches deleted from the remote repository are automatically removed from the server.
 
 ## 🛠️ Configuration
 
-Le conteneur se configure via des variables d'environnement obligatoires :
+The container is configured via mandatory environment variables:
 
-| Variable | Description | Exemple |
+| Variable | Description | Example |
 | :--- | :--- | :--- |
-| `REPO_URL` | URL du dépôt Git (HTTPS) | `https://github.com/user/my-react-app.git` |
-| `DOMAIN` | Nom de domaine utilisé (pour les logs/liens) | `preview.mon-site.com` |
-| `BASE_PATH` | Préfixe du chemin URL de base | `app` ou `/` |
+| `REPO_URL` | Git repository URL (HTTPS) | `https://github.com/user/my-react-app.git` |
+| `DOMAIN` | Domain name used (for logs/links) | `preview.my-site.com` |
+| `BASE_PATH` | Base URL path prefix | `app` or `/` |
 
-Variables optionnelles :
+Optional variables:
 
-| Variable | Description | Défaut |
-| :--- | :--- | :--- |
-| `BRANCH_REGEX` | Regex pour filtrer les branches à déployer | (Toutes les branches) |
+| Variable | Description                                                                                                                                       | Default |
+| :--- |:--------------------------------------------------------------------------------------------------------------------------------------------------| :--- |
+| `BRANCH_REGEX` | Regex to filter branches to deploy (e.g., `^(master\|dev\|feature/.*)$` to deploy dev, master or feature/ branches) | (All branches) |
 
-## 📦 Utilisation avec Docker
+## 📦 Usage with Docker
 
-L'image Docker est disponible sur Docker Hub sous le nom `ocelus/react-preview`.
+The Docker image is available on Docker Hub as `ocelus/react-preview`.
 
-### Lancer avec Docker Run
+### Run with Docker Run
 
 ```bash
 docker run -d \
-  -e REPO_URL="https://github.com/votre-compte/votre-projet.git" \
+  -e REPO_URL="https://github.com/your-account/your-project.git" \
   -e DOMAIN="localhost" \
   -e BASE_PATH="preview" \
   -p 8080:80 \
@@ -46,7 +46,7 @@ docker run -d \
   ocelus/react-preview
 ```
 
-### Exemple de Docker Compose
+### Docker Compose Example
 
 ```yaml
 version: '3.8'
@@ -57,10 +57,10 @@ services:
     ports:
       - "8080:80"
     environment:
-      - REPO_URL=https://github.com/mon-organisation/mon-projet-react.git
-      - DOMAIN=preview.mondomaine.com
-      - BASE_PATH=projets
-      - BRANCH_REGEX=^(feat|fix|hotfix)/.* # Optionnel
+      - REPO_URL=https://github.com/my-org/my-react-project.git
+      - DOMAIN=preview.mydomain.com
+      - BASE_PATH=projects
+      - BRANCH_REGEX=^(dev|master|features/) # Optional: dev, master and features/
     volumes:
       - preview_data:/var/www/html
     restart: always
@@ -69,15 +69,15 @@ volumes:
   preview_data:
 ```
 
-## 📝 Structure du projet
+## 📝 Project Structure
 
-- `Dockerfile` : Basé sur Node 20 Alpine, installe Git, Nginx et Gettext.
-- `sync.sh` : Script principal de synchronisation, build et nettoyage.
-- `nginx.conf.template` : Template Nginx configuré pour supporter le routage SPA sur des sous-chemins dynamiques.
+- `Dockerfile`: Based on Node 20 Alpine, installs Git, Nginx, and Gettext.
+- `sync.sh`: Main script for synchronization, build, and cleanup.
+- `nginx.conf.template`: Nginx template configured to support SPA routing on dynamic sub-paths.
 
-## 🔗 Accès aux environnements
+## 🔗 Environment Access
 
-Une fois déployées, les branches sont accessibles via :
-`https://${DOMAIN}/${BASE_PATH}/${nom-de-la-branche}/`
+Once deployed, branches are accessible via:
+`https://${DOMAIN}/${BASE_PATH}/${branch-name}/`
 
-*Note : Les noms de branches sont normalisés (passage en minuscules, remplacement des caractères spéciaux par des tirets).*
+*Note: Branch names are normalized (converted to lowercase, special characters replaced by dashes).*
