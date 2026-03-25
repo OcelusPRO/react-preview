@@ -1,4 +1,7 @@
 # React Preview
+[![Docker Pulls](https://img.shields.io/docker/pulls/ocelus/react-preview?style=flat-square)](https://hub.docker.com/r/ocelus/react-preview)
+[![Docker Stars](https://img.shields.io/docker/stars/ocelus/react-preview?style=flat-square)](https://hub.docker.com/r/ocelus/react-preview)
+[![GitHub stars](https://img.shields.io/github/stars/OcelusPRO/react-preview?style=flat-square)](https://github.com/OcelusPRO/react-preview)
 
 This project allows automatic deployment of preview environments for each branch of a Git repository containing a React application (designed with Vite). 
 
