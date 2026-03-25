@@ -31,10 +31,7 @@ while true; do
 
     active_safe_branches=""
 
-    # --- ÉTAPE 1 : COMPILATION ---
     for branch in $(git branch -r | grep origin/ | grep -v HEAD | sed 's/origin\///'); do
-
-        # Filtrage Regex optionnel
         if [ -n "$BRANCH_REGEX" ]; then
             if ! echo "$branch" | grep -Eq "$BRANCH_REGEX"; then continue; fi
         fi
@@ -55,12 +52,9 @@ while true; do
 
             npm ci --silent
 
-            # --- LA MAGIE EST ICI ---
-            # On force la variable d'environnement VITE_BASE_PATH pour que Vite l'utilise
             FULL_BASE_PATH="$BP_CLEAN/$safe_branch/"
             VITE_BASE_PATH="$FULL_BASE_PATH" npm run build
 
-            # Déplacement des fichiers
             rm -rf "$DEST_DIR/$safe_branch"
             mkdir -p "$DEST_DIR/$safe_branch"
             cp -r dist/* "$DEST_DIR/$safe_branch/"
@@ -70,7 +64,6 @@ while true; do
         fi
     done
 
-    # --- ÉTAPE 2 : NETTOYAGE ---
     for dir in $(find $DEST_DIR -mindepth 1 -maxdepth 1 -type d); do
         dir_name=$(basename $dir)
         is_active=false
@@ -85,7 +78,6 @@ while true; do
         fi
     done
 
-    # --- ÉTAPE 3 : LOGS ---
     echo "🌐 Environnements actuellement en ligne :"
     count=0
     for dir in $(find $DEST_DIR -mindepth 1 -maxdepth 1 -type d | sort); do
