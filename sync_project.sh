@@ -93,24 +93,27 @@ sync_project() {
         return
     fi
 
-    needs_fetch=false
-    active_safe_branches=""
-
     echo "$remote_refs" | while read -r remote_hash ref_name; do
         branch=$(echo "$ref_name" | sed 's|refs/heads/||')
 
         [ -n "$branch_regex" ] && ! echo "$branch" | grep -Eq "$branch_regex" && continue
 
         safe_branch=$(safe_branch_name "$branch")
-        active_safe_branches="$active_safe_branches $safe_branch"
-
         hash_file="$dest_dir/$safe_branch.hash"
         current_hash=""
+
         [ -f "$hash_file" ] && current_hash=$(cat "$hash_file")
 
         if [ "$remote_hash" != "$current_hash" ]; then
-            needs_fetch=true
             echo "$remote_hash" > "$work_dir/.pending_${safe_branch}.hash"
+        fi
+    done
+
+    needs_fetch=false
+    for pending_file in "$work_dir"/.pending_*.hash; do
+        if [ -f "$pending_file" ]; then
+            needs_fetch=true
+            break
         fi
     done
 
@@ -168,5 +171,6 @@ sync_project() {
     fi
 
     generate_index "$dest_dir" "$bp_clean" "$base_path"
+
     generate_nginx_conf
 }
