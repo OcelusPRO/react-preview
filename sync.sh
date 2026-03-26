@@ -1,25 +1,21 @@
 #!/bin/sh
 
-# ==========================================
-# CONFIGURATION
-# ==========================================
-# DOMAIN est obligatoire pour générer les liens
 if [ -z "$DOMAIN" ]; then
-    echo "❌ ERREUR : La variable DOMAIN doit être définie."
+    echo "ERREUR : La variable DOMAIN doit être définie."
     exit 1
 fi
 
 INTERVAL_SECONDS=${INTERVAL_SECONDS:-120}
 CONFIG_FILE=${CONFIG_FILE:-"/projects.json"}
 
-# Fonction de génération de la page d'index
 generate_index() {
     local dest_dir="$1"
     local bp_clean="$2"
     local base_path="$3"
     local index_file="$dest_dir/index.html"
 
-    echo "<html><head><title>Previews for $base_path</title>" > "$index_file"
+    echo "<!DOCTYPE html>" > "$index_file"
+    echo "<html lang=\"fr\"><head><meta charset=\"UTF-8\"><title>Previews for $base_path</title>" >> "$index_file"
     echo "<style>
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 0 auto; padding: 40px 20px; background-color: #f4f7f9; }
         h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
@@ -27,18 +23,21 @@ generate_index() {
         li { background: white; margin: 10px 0; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: transform 0.2s; }
         li:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.15); }
         a { text-decoration: none; color: #3498db; font-weight: bold; display: block; }
-        .branch-icon { margin-right: 10px; }
         .update-time { font-size: 0.8em; color: #7f8c8d; margin-top: 20px; text-align: center; }
     </style></head><body>" >> "$index_file"
-    echo "<h1>🚀 Previews for <code>$base_path</code></h1>" >> "$index_file"
+    echo "<h1>Previews for <code>$base_path</code></h1>" >> "$index_file"
     echo "<ul>" >> "$index_file"
 
-    # Lister les dossiers de branches (ceux qui ont un .hash)
     count=0
     for hash_file in $(ls "$dest_dir"/*.hash 2>/dev/null); do
         safe_branch=$(basename "$hash_file" .hash)
         if [ -d "$dest_dir/$safe_branch" ]; then
-            echo "<li><a href=\"$bp_clean/$safe_branch/\"><span class=\"branch-icon\">🌿</span> $safe_branch</a></li>" >> "$index_file"
+            if [ "$bp_clean" = "/" ]; then
+                link="/$safe_branch/"
+            else
+                link="$bp_clean/$safe_branch/"
+            fi
+            echo "<li><a href=\"$link\">$safe_branch</a></li>" >> "$index_file"
             count=$((count + 1))
         fi
     done
@@ -52,16 +51,13 @@ generate_index() {
     echo "</body></html>" >> "$index_file"
 }
 
-# Fonction principale de synchronisation pour un projet
 sync_project() {
     local repo_url="$1"
     local base_path="$2"
     local branch_regex="$3"
     local project_id="$4"
 
-    # Nettoyage du BASE_PATH
     local bp_clean="/$(echo "$base_path" | sed 's/^\///' | sed 's/\/$//')"
-    # Si base_path était "/" alors bp_clean est "//" ou "/". On normalise.
     bp_clean=$(echo "$bp_clean" | sed 's/\/\//\//g')
     if [ "$bp_clean" != "/" ]; then
         bp_clean=$(echo "$bp_clean" | sed 's/\/$//')
@@ -75,16 +71,15 @@ sync_project() {
     cd "$work_dir" || return
 
     if [ ! -d ".git" ]; then
-        echo "📥 [$base_path] Clone initial du dépôt depuis $repo_url..."
+        echo "[$base_path] Clone initial du dépôt depuis $repo_url..."
         git clone "$repo_url" .
     fi
 
-    echo "🔄 [$base_path] [$(date +'%H:%M:%S')] Vérification des mises à jour..."
+    echo "[$base_path] [$(date +'%H:%M:%S')] Vérification des mises à jour..."
     git fetch --all --prune --quiet
 
     active_safe_branches=""
 
-    # Lister les branches distantes
     for branch in $(git branch -r | grep origin/ | grep -v HEAD | sed 's/origin\///'); do
         if [ -n "$branch_regex" ]; then
             if ! echo "$branch" | grep -Eq "$branch_regex"; then continue; fi
@@ -99,34 +94,36 @@ sync_project() {
         if [ -f "$hash_file" ]; then current_hash=$(cat "$hash_file"); fi
 
         if [ "$remote_hash" != "$current_hash" ]; then
-            echo "🚀 [$base_path] Nouvelle version détectée sur la branche '$branch' ($remote_hash)."
+            echo "[$base_path] Nouvelle version détectée sur la branche '$branch' ($remote_hash)."
 
-            git checkout -f "$branch" --quiet
-            git reset --hard "origin/$branch" --quiet
+            git clean -fdx
+            git checkout -B "$branch" "origin/$branch" --quiet
 
             if [ -f "package.json" ]; then
-                npm ci --silent
-                
-                # Construction du FULL_BASE_PATH pour Vite
+                if [ -f "package-lock.json" ]; then
+                    npm ci --silent
+                else
+                    npm install --silent
+                fi
+
                 if [ "$bp_clean" = "/" ]; then
                     full_base_path="/$safe_branch/"
                 else
                     full_base_path="$bp_clean/$safe_branch/"
                 fi
-                
-                echo "🔨 [$base_path] Build de la branche '$branch' avec BASE=$full_base_path..."
-                VITE_BASE_PATH="$full_base_path" npm run build || { echo "❌ Build échoué"; continue; }
+
+                echo "[$base_path] Build de la branche '$branch' avec BASE=$full_base_path..."
+                VITE_BASE_PATH="$full_base_path" npm run build || { echo "Build échoué"; continue; }
 
                 rm -rf "$dest_dir/$safe_branch"
                 mkdir -p "$dest_dir/$safe_branch"
-                cp -r dist/* "$dest_dir/$safe_branch/"
+                cp -r dist/* "$dest_dir/$safe_branch/" 2>/dev/null || true
                 echo "$remote_hash" > "$hash_file"
-                echo "✅ [$base_path] Branche déployée sur https://$DOMAIN$full_base_path"
+                echo "[$base_path] Branche déployée sur https://$DOMAIN$full_base_path"
             fi
         fi
     done
 
-    # Nettoyage des branches supprimées
     for dir in $(find "$dest_dir" -mindepth 1 -maxdepth 1 -type d); do
         dir_name=$(basename "$dir")
         is_active=false
@@ -135,38 +132,34 @@ sync_project() {
         done
 
         if [ "$is_active" = false ] && [ "$dir_name" != "index.html" ]; then
-            echo "🧹 [$base_path] Nettoyage de la branche supprimée : '$dir_name'..."
+            echo "[$base_path] Nettoyage de la branche supprimée : '$dir_name'..."
             rm -rf "$dir"
             rm -f "$dest_dir/$dir_name.hash"
         fi
     done
-    
+
     generate_index "$dest_dir" "$bp_clean" "$base_path"
 }
 
-# Boucle principale
 while true; do
     if [ -f "$CONFIG_FILE" ]; then
-        # Mode Multi-Projets
         num_projects=$(jq '. | length' "$CONFIG_FILE")
         i=0
         while [ $i -lt "$num_projects" ]; do
             repo_url=$(jq -r ".[$i].REPO_URL" "$CONFIG_FILE")
             base_path=$(jq -r ".[$i].BASE_PATH" "$CONFIG_FILE")
             branch_regex=$(jq -r ".[$i].BRANCH_REGEX // \"\"" "$CONFIG_FILE")
-            
+
             if [ "$repo_url" != "null" ] && [ "$base_path" != "null" ]; then
                 sync_project "$repo_url" "$base_path" "$branch_regex" "proj_$i"
             fi
             i=$((i + 1))
         done
     elif [ -n "$REPO_URL" ] && [ -n "$BASE_PATH" ]; then
-        # Mode Mono-Projet
         sync_project "$REPO_URL" "$BASE_PATH" "$BRANCH_REGEX" "default"
     else
-        echo "😴 [$(date +'%H:%M:%S')] Aucune configuration trouvée."
+        echo "[$(date +'%H:%M:%S')] Aucune configuration trouvée."
     fi
 
-    echo "---------------------------------------------------"
     sleep "$INTERVAL_SECONDS"
 done
