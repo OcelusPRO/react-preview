@@ -113,7 +113,11 @@ sync_project() {
                 fi
 
                 echo "[$base_path] Build de la branche '$branch' avec BASE=$full_base_path..."
-                VITE_BASE_PATH="$full_base_path" npm run build || { echo "Build échoué"; continue; }
+
+                echo "VITE_BASE_PATH=$full_base_path" > .env.local
+                echo "PUBLIC_URL=$full_base_path" >> .env.local
+
+                VITE_BASE_PATH="$full_base_path" npm run build -- --base="$full_base_path" || { echo "Build échoué"; continue; }
 
                 rm -rf "$dest_dir/$safe_branch"
                 mkdir -p "$dest_dir/$safe_branch"
