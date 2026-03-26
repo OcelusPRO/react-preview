@@ -1,7 +1,7 @@
 #!/bin/sh
 
 if [ -z "$DOMAIN" ]; then
-    echo "ERREUR : La variable DOMAIN doit être définie."
+    echo "ERROR: The DOMAIN variable must be defined."
     exit 1
 fi
 
@@ -40,7 +40,7 @@ generate_nginx_conf() {
     if ! cmp -s "$tmp_conf" "$conf_file"; then
         mv "$tmp_conf" "$conf_file"
         nginx -s reload 2>/dev/null || true
-        echo "⚙️ Configuration Nginx rechargée dynamiquement."
+        echo "⚙️ Nginx configuration reloaded dynamically."
     fi
 }
 
@@ -51,13 +51,11 @@ generate_index() {
     local json_file="$dest_dir/branches.json"
     local index_file="$dest_dir/index.html"
 
-    # Copier le fichier HTML statique depuis le template embarqué dans l'image
     cp /template.html "$index_file"
 
-    # Construire le fichier JSON
     echo "{" > "$json_file"
     echo "  \"base_path\": \"$base_path\"," >> "$json_file"
-    echo "  \"last_update\": \"$(date +'%d/%m/%Y %H:%M:%S')\"," >> "$json_file"
+    echo "  \"last_update\": \"$(date +'%Y-%m-%d %H:%M:%S')\"," >> "$json_file"
     echo "  \"branches\": [" >> "$json_file"
 
     first=true
@@ -79,7 +77,6 @@ generate_index() {
         fi
     done
 
-    # Nouvelle ligne pour terminer proprement le tableau JSON
     echo "" >> "$json_file"
     echo "  ]" >> "$json_file"
     echo "}" >> "$json_file"
@@ -105,11 +102,11 @@ sync_project() {
     cd "$work_dir" || return
 
     if [ ! -d ".git" ]; then
-        echo "[$base_path] Clone initial du dépôt depuis $repo_url..."
+        echo "[$base_path] Initial clone of the repository from $repo_url..."
         git clone "$repo_url" .
     fi
 
-    echo "[$base_path] [$(date +'%H:%M:%S')] Vérification des mises à jour..."
+    echo "[$base_path] [$(date +'%H:%M:%S')] Checking for updates..."
     git fetch --all --prune --quiet
 
     active_safe_branches=""
@@ -128,7 +125,7 @@ sync_project() {
         if [ -f "$hash_file" ]; then current_hash=$(cat "$hash_file"); fi
 
         if [ "$remote_hash" != "$current_hash" ]; then
-            echo "[$base_path] Nouvelle version détectée sur la branche '$branch' ($remote_hash)."
+            echo "[$base_path] New version detected on branch '$branch' ($remote_hash)."
 
             git clean -fdx
             git checkout -B "$branch" "origin/$branch" --quiet
@@ -146,15 +143,15 @@ sync_project() {
                     full_base_path="$bp_clean/$safe_branch/"
                 fi
 
-                echo "[$base_path] Build de la branche '$branch' avec BASE=$full_base_path..."
+                echo "[$base_path] Building branch '$branch' with BASE=$full_base_path..."
 
-                VITE_BASE_PATH="$full_base_path" npm run build -- --base="$full_base_path" || { echo "Build échoué"; continue; }
+                VITE_BASE_PATH="$full_base_path" npm run build -- --base="$full_base_path" || { echo "Build failed"; continue; }
 
                 rm -rf "$dest_dir/$safe_branch"
                 mkdir -p "$dest_dir/$safe_branch"
                 cp -r dist/* "$dest_dir/$safe_branch/" 2>/dev/null || true
                 echo "$remote_hash" > "$hash_file"
-                echo "[$base_path] Branche déployée sur https://$DOMAIN$full_base_path"
+                echo "[$base_path] Branch deployed at https://$DOMAIN$full_base_path"
             fi
         fi
     done
@@ -167,7 +164,7 @@ sync_project() {
         done
 
         if [ "$is_active" = false ] && [ "$dir_name" != "index.html" ] && [ "$dir_name" != "branches.json" ]; then
-            echo "[$base_path] Nettoyage de la branche supprimée : '$dir_name'..."
+            echo "[$base_path] Cleaning up deleted branch: '$dir_name'..."
             rm -rf "$dir"
             rm -f "$dest_dir/$dir_name.hash"
         fi
@@ -183,20 +180,27 @@ while true; do
         i=0
         while [ $i -lt "$num_projects" ]; do
             repo_url=$(jq -r ".[$i].REPO_URL" "$CONFIG_FILE")
-            base_path=$(jq -r ".[$i].BASE_PATH" "$CONFIG_FILE")
+            base_path=$(jq -r ".[$i].BASE_PATH // \"\"" "$CONFIG_FILE")
             branch_regex=$(jq -r ".[$i].BRANCH_REGEX // \"\"" "$CONFIG_FILE")
 
-            if [ "$repo_url" != "null" ] && [ "$base_path" != "null" ]; then
+            if [ "$repo_url" != "null" ]; then
+                if [ -z "$base_path" ]; then
+                    base_path=$(basename "$repo_url" .git)
+                fi
                 sync_project "$repo_url" "$base_path" "$branch_regex" "proj_$i"
                 has_run=true
             fi
             i=$((i + 1))
         done
-    elif [ -n "$REPO_URL" ] && [ -n "$BASE_PATH" ]; then
-        sync_project "$REPO_URL" "$BASE_PATH" "$BRANCH_REGEX" "default"
+    elif [ -n "$REPO_URL" ]; then
+        current_base_path="$BASE_PATH"
+        if [ -z "$current_base_path" ]; then
+            current_base_path=$(basename "$REPO_URL" .git)
+        fi
+        sync_project "$REPO_URL" "$current_base_path" "$BRANCH_REGEX" "default"
         has_run=true
     else
-        echo "[$(date +'%H:%M:%S')] Aucune configuration trouvée."
+        echo "[$(date +'%H:%M:%S')] No configuration found."
     fi
 
     if [ "$has_run" = true ]; then

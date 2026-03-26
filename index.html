@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -30,12 +30,12 @@
 </head>
 <body>
 <div class="header">
-    <h1>Previews : <code id="base-path-display">...</code></h1>
-    <button id="theme-btn">Changer de thème</button>
+    <h1>Previews: <code id="base-path-display">...</code></h1>
+    <button id="theme-btn">💡</button>
 </div>
 
 <ul id="branches-list">
-    <li class="loader">Chargement des branches...</li>
+    <li class="loader">Loading branches...</li>
 </ul>
 
 <div class="update-time" id="update-time"></div>
@@ -48,18 +48,17 @@
         localStorage.setItem('theme', newTheme);
     });
 
-    // Le timestamp évite que le navigateur ne mette le JSON en cache
     fetch('branches.json?t=' + new Date().getTime())
         .then(response => response.json())
         .then(data => {
             document.getElementById('base-path-display').textContent = data.base_path;
-            document.getElementById('update-time').textContent = 'Dernière mise à jour : ' + data.last_update;
+            document.getElementById('update-time').textContent = 'Last update: ' + data.last_update;
 
             const list = document.getElementById('branches-list');
             list.innerHTML = '';
 
             if (!data.branches || data.branches.length === 0) {
-                list.innerHTML = '<li class="empty-state">Aucune branche déployée pour le moment.</li>';
+                list.innerHTML = '<li class="empty-state">No branches deployed yet.</li>';
                 return;
             }
 
@@ -73,8 +72,8 @@
             });
         })
         .catch(err => {
-            document.getElementById('branches-list').innerHTML = '<li class="empty-state">Erreur lors du chargement des données.</li>';
-            console.error('Erreur:', err);
+            document.getElementById('branches-list').innerHTML = '<li class="empty-state">Error loading data.</li>';
+            console.error('Error:', err);
         });
 </script>
 </body>
