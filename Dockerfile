@@ -2,8 +2,7 @@ FROM node:20-alpine
 
 RUN apk add --no-cache git nginx gettext jq
 
-ENV npm_config_cache=/var/cache/npm
-RUN mkdir -p /var/www/html /tmp/workdir /run/nginx /var/cache/npm
+RUN mkdir -p /var/www/html /tmp/workdir /run/nginx
 
 COPY nginx.conf.template /etc/nginx/http.d/default.conf.template
 COPY sync.sh /sync.sh

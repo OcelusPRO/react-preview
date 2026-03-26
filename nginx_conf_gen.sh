@@ -11,8 +11,6 @@ generate_nginx_conf() {
 
     find /var/www/html -type f -name "branches.json" | while read -r branches_file; do
         project_dir=$(dirname "$branches_file")
-        project_loc=$(echo "$project_dir" | sed 's|^/var/www/html||')
-        [ -z "$project_loc" ] && project_loc="/"
 
         find "$project_dir" -maxdepth 1 -type f -name "*.hash" | while read -r hash_file; do
             branch_name=$(basename "$hash_file" .hash)
@@ -37,6 +35,6 @@ generate_nginx_conf() {
     if ! cmp -s "$tmp_conf" "$conf_file"; then
         mv "$tmp_conf" "$conf_file"
         nginx -s reload 2>/dev/null || true
-        echo "⚙️ Nginx configuration reloaded (Targeted SPA routing applied)."
+        echo "⚙️ Configuration Nginx rechargée (Routage SPA ciblé appliqué)."
     fi
 }
