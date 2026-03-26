@@ -18,6 +18,8 @@ generate_nginx_conf() {
     echo "    root /var/www/html;" >> "$tmp_conf"
     echo "    index index.html;" >> "$tmp_conf"
 
+    # Chercher tous les index.html générés et créer une route explicite pour chacun
+    # Triés par longueur de chemin (du plus long au plus court) pour la priorité Nginx
     find /var/www/html -type f -name "index.html" | awk '{ print length, $0 }' | sort -rn | cut -d" " -f2- | while read -r index_path; do
         local dir_path=$(dirname "$index_path")
         local location_path=$(echo "$dir_path" | sed 's|^/var/www/html||')
@@ -38,6 +40,7 @@ generate_nginx_conf() {
 
     echo "}" >> "$tmp_conf"
 
+    # Appliquer et recharger Nginx uniquement si la configuration a changé
     if ! cmp -s "$tmp_conf" "$conf_file"; then
         mv "$tmp_conf" "$conf_file"
         nginx -s reload 2>/dev/null || true
@@ -151,6 +154,7 @@ sync_project() {
 
                 echo "[$base_path] Build de la branche '$branch' avec BASE=$full_base_path..."
 
+                # Le flag --base garantit que Vite utilise le bon chemin même si le code React ne le gère pas.
                 VITE_BASE_PATH="$full_base_path" npm run build -- --base="$full_base_path" || { echo "Build échoué"; continue; }
 
                 rm -rf "$dest_dir/$safe_branch"
@@ -169,4 +173,43 @@ sync_project() {
             if [ "$dir_name" = "$active_branch" ]; then is_active=true; break; fi
         done
 
-        if [ "$is_active" = false ] && [ "$dir_name" != "index.html"
+        if [ "$is_active" = false ] && [ "$dir_name" != "index.html" ]; then
+            echo "[$base_path] Nettoyage de la branche supprimée : '$dir_name'..."
+            rm -rf "$dir"
+            rm -f "$dest_dir/$dir_name.hash"
+        fi
+    done
+
+    generate_index "$dest_dir" "$bp_clean" "$base_path"
+}
+
+while true; do
+    has_run=false
+    if [ -f "$CONFIG_FILE" ]; then
+        num_projects=$(jq '. | length' "$CONFIG_FILE")
+        i=0
+        while [ $i -lt "$num_projects" ]; do
+            repo_url=$(jq -r ".[$i].REPO_URL" "$CONFIG_FILE")
+            base_path=$(jq -r ".[$i].BASE_PATH" "$CONFIG_FILE")
+            branch_regex=$(jq -r ".[$i].BRANCH_REGEX // \"\"" "$CONFIG_FILE")
+
+            if [ "$repo_url" != "null" ] && [ "$base_path" != "null" ]; then
+                sync_project "$repo_url" "$base_path" "$branch_regex" "proj_$i"
+                has_run=true
+            fi
+            i=$((i + 1))
+        done
+    elif [ -n "$REPO_URL" ] && [ -n "$BASE_PATH" ]; then
+        sync_project "$REPO_URL" "$BASE_PATH" "$BRANCH_REGEX" "default"
+        has_run=true
+    else
+        echo "[$(date +'%H:%M:%S')] Aucune configuration trouvée."
+    fi
+
+    # Met à jour Nginx après chaque cycle de synchronisation
+    if [ "$has_run" = true ]; then
+        generate_nginx_conf
+    fi
+
+    sleep "$INTERVAL_SECONDS"
+done
