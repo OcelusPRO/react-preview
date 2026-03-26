@@ -2,6 +2,7 @@
 
 . "$(dirname "$0")/utils.sh"
 . "$(dirname "$0")/index_gen.sh"
+. "$(dirname "$0")/nginx_conf_gen.sh"
 
 build_branch_async() {
     pending_file="$1"
@@ -167,4 +168,5 @@ sync_project() {
     fi
 
     generate_index "$dest_dir" "$bp_clean" "$base_path"
+    generate_nginx_conf
 }
