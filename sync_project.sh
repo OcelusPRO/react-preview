@@ -85,49 +85,40 @@ sync_project() {
         export GIT_ASKPASS="$_GIT_ASKPASS_TMP"
     fi
 
-    echo "[$base_path] [$(date +'%H:%M:%S')] Checking remote registry via ls-remote..."
+    cd "$work_dir" || return
 
-    remote_refs=$(git ls-remote --heads "$repo_url")
-    if [ -z "$remote_refs" ]; then
-        echo "[$base_path] Failed to reach remote repository or repository is empty."
-        return
+    if [ ! -d ".git" ]; then
+        echo "[$base_path] Initial clone of the repository..."
+        git clone "$repo_url" . --quiet
     fi
 
-    echo "$remote_refs" | while read -r remote_hash ref_name; do
-        branch=$(echo "$ref_name" | sed 's|refs/heads/||')
+    echo "[$base_path] [$(date +'%H:%M:%S')] Fetching updates from remote..."
+    git fetch --all --prune --quiet
 
+    git branch -r | grep origin/ | grep -v HEAD | sed 's/origin\///' > .remote_branches
+
+    active_safe_branches=""
+    needs_build=false
+
+    while read -r branch; do
         [ -n "$branch_regex" ] && ! echo "$branch" | grep -Eq "$branch_regex" && continue
 
         safe_branch=$(safe_branch_name "$branch")
+        active_safe_branches="$active_safe_branches $safe_branch"
+
+        remote_hash=$(git rev-parse "origin/$branch")
         hash_file="$dest_dir/$safe_branch.hash"
         current_hash=""
-
         [ -f "$hash_file" ] && current_hash=$(cat "$hash_file")
 
         if [ "$remote_hash" != "$current_hash" ]; then
-            echo "$remote_hash" > "$work_dir/.pending_${safe_branch}.hash"
+            echo "$remote_hash" > ".pending_${safe_branch}.hash"
+            needs_build=true
         fi
-    done
+    done < .remote_branches
+    rm -f .remote_branches
 
-    needs_fetch=false
-    for pending_file in "$work_dir"/.pending_*.hash; do
-        if [ -f "$pending_file" ]; then
-            needs_fetch=true
-            break
-        fi
-    done
-
-    if [ "$needs_fetch" = true ] || [ ! -d "$work_dir/.git" ]; then
-        cd "$work_dir" || return
-
-        if [ ! -d ".git" ]; then
-            echo "[$base_path] Initial clone of the repository..."
-            git clone "$repo_url" . --quiet
-        else
-            echo "[$base_path] Updates detected, fetching code..."
-            git fetch --all --prune --quiet
-        fi
-
+    if [ "$needs_build" = true ]; then
         jobs_started=0
         for pending_file in .pending_*.hash; do
             [ -e "$pending_file" ] || continue
@@ -140,22 +131,16 @@ sync_project() {
             wait
             echo "[$base_path] All parallel builds finished."
         fi
-
-        cd - > /dev/null || return
     fi
 
-    all_active_safe_branches=$(echo "$remote_refs" | while read -r hash ref_name; do
-        b=$(echo "$ref_name" | sed 's|refs/heads/||')
-        [ -n "$branch_regex" ] && ! echo "$b" | grep -Eq "$branch_regex" && continue
-        safe_branch_name "$b"
-    done)
+    cd - > /dev/null || return
 
     for dir in "$dest_dir"/*/; do
         [ -d "$dir" ] || continue
         dir_name=$(basename "$dir")
         is_active=false
 
-        for active_branch in $all_active_safe_branches; do
+        for active_branch in $active_safe_branches; do
             [ "$dir_name" = "$active_branch" ] && is_active=true && break
         done
 
@@ -171,5 +156,5 @@ sync_project() {
     fi
 
     generate_index "$dest_dir" "$bp_clean" "$base_path"
-        generate_nginx_conf
+    generate_nginx_conf
 }
