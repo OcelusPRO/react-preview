@@ -1,23 +1,9 @@
 server {
     listen 80;
-
     root /var/www/html;
     index index.html;
 
-    error_page 404 = @fallback;
-
-    location ~ ^(?<app_base>(/.+)?/[a-z0-9-]+)(/.*)?$ {
-        try_files $uri $uri/ $app_base/index.html;
-    }
-
     location / {
-        try_files $uri $uri/ @fallback;
-    }
-
-    location @fallback {
-        if ($http_referer ~* ^https?://[^/]+(?<ref_base>(/.+)?/[a-z0-9-]+)/) {
-            rewrite ^/(.*)$ $ref_base/$1 last;
-        }
-        return 404;
+        try_files $uri $uri/ /index.html =404;
     }
 }

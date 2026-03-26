@@ -8,6 +8,43 @@ fi
 INTERVAL_SECONDS=${INTERVAL_SECONDS:-120}
 CONFIG_FILE=${CONFIG_FILE:-"/projects.json"}
 
+# Génère dynamiquement la configuration Nginx en fonction des branches existantes
+generate_nginx_conf() {
+    local conf_file="/etc/nginx/http.d/default.conf"
+    local tmp_conf="/tmp/default.conf.tmp"
+
+    echo "server {" > "$tmp_conf"
+    echo "    listen 80;" >> "$tmp_conf"
+    echo "    root /var/www/html;" >> "$tmp_conf"
+    echo "    index index.html;" >> "$tmp_conf"
+
+    find /var/www/html -type f -name "index.html" | awk '{ print length, $0 }' | sort -rn | cut -d" " -f2- | while read -r index_path; do
+        local dir_path=$(dirname "$index_path")
+        local location_path=$(echo "$dir_path" | sed 's|^/var/www/html||')
+
+        if [ -z "$location_path" ]; then
+            location_path="/"
+        fi
+
+        local loc_route="$location_path"
+        if [ "$loc_route" != "/" ]; then
+            loc_route="$loc_route/"
+        fi
+
+        echo "    location $loc_route {" >> "$tmp_conf"
+        echo "        try_files \$uri \$uri/ $location_path/index.html;" >> "$tmp_conf"
+        echo "    }" >> "$tmp_conf"
+    done
+
+    echo "}" >> "$tmp_conf"
+
+    if ! cmp -s "$tmp_conf" "$conf_file"; then
+        mv "$tmp_conf" "$conf_file"
+        nginx -s reload 2>/dev/null || true
+        echo "⚙️ Configuration Nginx rechargée dynamiquement."
+    fi
+}
+
 generate_index() {
     local dest_dir="$1"
     local bp_clean="$2"
@@ -114,9 +151,6 @@ sync_project() {
 
                 echo "[$base_path] Build de la branche '$branch' avec BASE=$full_base_path..."
 
-                echo "VITE_BASE_PATH=$full_base_path" > .env.local
-                echo "PUBLIC_URL=$full_base_path" >> .env.local
-
                 VITE_BASE_PATH="$full_base_path" npm run build -- --base="$full_base_path" || { echo "Build échoué"; continue; }
 
                 rm -rf "$dest_dir/$safe_branch"
@@ -135,35 +169,4 @@ sync_project() {
             if [ "$dir_name" = "$active_branch" ]; then is_active=true; break; fi
         done
 
-        if [ "$is_active" = false ] && [ "$dir_name" != "index.html" ]; then
-            echo "[$base_path] Nettoyage de la branche supprimée : '$dir_name'..."
-            rm -rf "$dir"
-            rm -f "$dest_dir/$dir_name.hash"
-        fi
-    done
-
-    generate_index "$dest_dir" "$bp_clean" "$base_path"
-}
-
-while true; do
-    if [ -f "$CONFIG_FILE" ]; then
-        num_projects=$(jq '. | length' "$CONFIG_FILE")
-        i=0
-        while [ $i -lt "$num_projects" ]; do
-            repo_url=$(jq -r ".[$i].REPO_URL" "$CONFIG_FILE")
-            base_path=$(jq -r ".[$i].BASE_PATH" "$CONFIG_FILE")
-            branch_regex=$(jq -r ".[$i].BRANCH_REGEX // \"\"" "$CONFIG_FILE")
-
-            if [ "$repo_url" != "null" ] && [ "$base_path" != "null" ]; then
-                sync_project "$repo_url" "$base_path" "$branch_regex" "proj_$i"
-            fi
-            i=$((i + 1))
-        done
-    elif [ -n "$REPO_URL" ] && [ -n "$BASE_PATH" ]; then
-        sync_project "$REPO_URL" "$BASE_PATH" "$BRANCH_REGEX" "default"
-    else
-        echo "[$(date +'%H:%M:%S')] Aucune configuration trouvée."
-    fi
-
-    sleep "$INTERVAL_SECONDS"
-done
+        if [ "$is_active" = false ] && [ "$dir_name" != "index.html"
