@@ -6,6 +6,7 @@ RUN mkdir -p /var/www/html /tmp/workdir /run/nginx
 
 COPY nginx.conf.template /etc/nginx/http.d/default.conf.template
 COPY sync.sh /sync.sh
+COPY index.html /template.html
 RUN chmod +x /sync.sh
 
 EXPOSE 80

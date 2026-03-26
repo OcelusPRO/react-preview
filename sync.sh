@@ -8,7 +8,6 @@ fi
 INTERVAL_SECONDS=${INTERVAL_SECONDS:-120}
 CONFIG_FILE=${CONFIG_FILE:-"/projects.json"}
 
-# Génère dynamiquement la configuration Nginx en fonction des branches existantes
 generate_nginx_conf() {
     local conf_file="/etc/nginx/http.d/default.conf"
     local tmp_conf="/tmp/default.conf.tmp"
@@ -18,8 +17,6 @@ generate_nginx_conf() {
     echo "    root /var/www/html;" >> "$tmp_conf"
     echo "    index index.html;" >> "$tmp_conf"
 
-    # Chercher tous les index.html générés et créer une route explicite pour chacun
-    # Triés par longueur de chemin (du plus long au plus court) pour la priorité Nginx
     find /var/www/html -type f -name "index.html" | awk '{ print length, $0 }' | sort -rn | cut -d" " -f2- | while read -r index_path; do
         local dir_path=$(dirname "$index_path")
         local location_path=$(echo "$dir_path" | sed 's|^/var/www/html||')
@@ -40,7 +37,6 @@ generate_nginx_conf() {
 
     echo "}" >> "$tmp_conf"
 
-    # Appliquer et recharger Nginx uniquement si la configuration a changé
     if ! cmp -s "$tmp_conf" "$conf_file"; then
         mv "$tmp_conf" "$conf_file"
         nginx -s reload 2>/dev/null || true
@@ -52,23 +48,19 @@ generate_index() {
     local dest_dir="$1"
     local bp_clean="$2"
     local base_path="$3"
+    local json_file="$dest_dir/branches.json"
     local index_file="$dest_dir/index.html"
 
-    echo "<!DOCTYPE html>" > "$index_file"
-    echo "<html lang=\"fr\"><head><meta charset=\"UTF-8\"><title>Previews for $base_path</title>" >> "$index_file"
-    echo "<style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 0 auto; padding: 40px 20px; background-color: #f4f7f9; }
-        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
-        ul { list-style: none; padding: 0; }
-        li { background: white; margin: 10px 0; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: transform 0.2s; }
-        li:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.15); }
-        a { text-decoration: none; color: #3498db; font-weight: bold; display: block; }
-        .update-time { font-size: 0.8em; color: #7f8c8d; margin-top: 20px; text-align: center; }
-    </style></head><body>" >> "$index_file"
-    echo "<h1>Previews for <code>$base_path</code></h1>" >> "$index_file"
-    echo "<ul>" >> "$index_file"
+    # Copier le fichier HTML statique depuis le template embarqué dans l'image
+    cp /template.html "$index_file"
 
-    count=0
+    # Construire le fichier JSON
+    echo "{" > "$json_file"
+    echo "  \"base_path\": \"$base_path\"," >> "$json_file"
+    echo "  \"last_update\": \"$(date +'%d/%m/%Y %H:%M:%S')\"," >> "$json_file"
+    echo "  \"branches\": [" >> "$json_file"
+
+    first=true
     for hash_file in $(ls "$dest_dir"/*.hash 2>/dev/null); do
         safe_branch=$(basename "$hash_file" .hash)
         if [ -d "$dest_dir/$safe_branch" ]; then
@@ -77,18 +69,20 @@ generate_index() {
             else
                 link="$bp_clean/$safe_branch/"
             fi
-            echo "<li><a href=\"$link\">$safe_branch</a></li>" >> "$index_file"
-            count=$((count + 1))
+
+            if [ "$first" = true ]; then
+                first=false
+            else
+                echo "    ," >> "$json_file"
+            fi
+            echo "    { \"name\": \"$safe_branch\", \"link\": \"$link\" }" >> "$json_file"
         fi
     done
 
-    if [ "$count" -eq 0 ]; then
-        echo "<li>Aucune branche déployée pour le moment.</li>" >> "$index_file"
-    fi
-
-    echo "</ul>" >> "$index_file"
-    echo "<div class=\"update-time\">Dernière mise à jour : $(date +'%d/%m/%Y %H:%M:%S')</div>" >> "$index_file"
-    echo "</body></html>" >> "$index_file"
+    # Nouvelle ligne pour terminer proprement le tableau JSON
+    echo "" >> "$json_file"
+    echo "  ]" >> "$json_file"
+    echo "}" >> "$json_file"
 }
 
 sync_project() {
@@ -154,7 +148,6 @@ sync_project() {
 
                 echo "[$base_path] Build de la branche '$branch' avec BASE=$full_base_path..."
 
-                # Le flag --base garantit que Vite utilise le bon chemin même si le code React ne le gère pas.
                 VITE_BASE_PATH="$full_base_path" npm run build -- --base="$full_base_path" || { echo "Build échoué"; continue; }
 
                 rm -rf "$dest_dir/$safe_branch"
@@ -173,7 +166,7 @@ sync_project() {
             if [ "$dir_name" = "$active_branch" ]; then is_active=true; break; fi
         done
 
-        if [ "$is_active" = false ] && [ "$dir_name" != "index.html" ]; then
+        if [ "$is_active" = false ] && [ "$dir_name" != "index.html" ] && [ "$dir_name" != "branches.json" ]; then
             echo "[$base_path] Nettoyage de la branche supprimée : '$dir_name'..."
             rm -rf "$dir"
             rm -f "$dest_dir/$dir_name.hash"
@@ -206,7 +199,6 @@ while true; do
         echo "[$(date +'%H:%M:%S')] Aucune configuration trouvée."
     fi
 
-    # Met à jour Nginx après chaque cycle de synchronisation
     if [ "$has_run" = true ]; then
         generate_nginx_conf
     fi
