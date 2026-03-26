@@ -23,14 +23,14 @@ The container can be configured in two ways: via environment variables (for a si
 
 ### Single Project Mode (Environment Variables)
 
-| Variable | Description | Example                                    |
-| :--- | :--- |:-------------------------------------------|
-| `REPO_URL` | Git repository URL (HTTPS) | `https://github.com/user/my-react-app.git` |
-| `DOMAIN` | Domain name (mandatory) | `preview.my-site.com`                      |
-| `BASE_PATH` | Base URL path prefix | `app` or `/`                               |
-| `BRANCH_REGEX` | (Optional) Regex to filter branches | `^(master\|dev)$`                          |
-| `INTERVAL_SECONDS` | (Optional) Time between syncs (sec) | `60` (Default: 120)                       |
-| `GIT_TOKEN` | (Optionnel) Token d'accès personnel GitHub pour cloner des dépôts privés | `ghp_xxx...` |
+| Variable           | Description                                              | Example                                    |
+|:-------------------|:---------------------------------------------------------|:-------------------------------------------|
+| `REPO_URL`         | Git repository URL (HTTPS)                               | `https://github.com/user/my-react-app.git` |
+| `DOMAIN`           | Domain name (mandatory)                                  | `preview.my-site.com`                      |
+| `BASE_PATH`        | Base URL path prefix                                     | `/app` or `/`                              |
+| `BRANCH_REGEX`     | (Optional) Regex to filter branches                      | `^(master\|dev)$`                          |
+| `INTERVAL_SECONDS` | (Optional) Time between syncs (sec)                      | `60` (Default: 120)                        |
+| `GIT_TOKEN`        | (Optional) Personal Access Token for private repository  | `ghp_xxx...`                               |
 
 ### Multiple Projects Mode (JSON File)
 
