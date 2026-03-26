@@ -13,7 +13,8 @@ COPY nginx_conf_gen.sh /nginx_conf_gen.sh
 COPY utils.sh /utils.sh
 COPY index.html /template.html
 
-RUN chmod +x /sync.sh /sync_project.sh /index_gen.sh /nginx_conf_gen.sh /utils.sh
+COPY force_rebuild.sh /usr/local/bin/rebuild-all
+RUN chmod +x /sync.sh /sync_project.sh /index_gen.sh /nginx_conf_gen.sh /utils.sh /usr/local/bin/rebuild-all
 
 EXPOSE 80
 
