@@ -27,7 +27,7 @@ build_branch_async() {
     branch_build_dir="/tmp/workdir/${project_id}_${safe_branch}_build"
     rm -rf "$branch_build_dir"
 
-    git clone "$work_dir" "$branch_build_dir" --quiet
+    cp -a "$work_dir" "$branch_build_dir"
 
     (
         cd "$branch_build_dir" || exit 1
@@ -171,6 +171,5 @@ sync_project() {
     fi
 
     generate_index "$dest_dir" "$bp_clean" "$base_path"
-
-    generate_nginx_conf
+        generate_nginx_conf
 }
