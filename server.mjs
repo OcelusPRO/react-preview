@@ -37,7 +37,6 @@ app.use('/:project/:branch', (req, res, next) => {
     const indexPath = path.join(branchDir, 'index.html');
 
     if (existsSync(branchDir) && existsSync(indexPath)) {
-        // Send the branch's main entry point for SPA routing
         res.sendFile(indexPath);
     } else {
         next();
@@ -109,7 +108,6 @@ class DeployManager {
         this.log(`Starting build for branch: ${branch}`);
 
         try {
-            // Clean working directory and checkout target branch
             await execAsync(`git clean -fdx && git reset --hard && git checkout -B "${branch}" "origin/${branch}" --quiet`, { cwd: WORK_DIR });
 
             if (!existsSync(path.join(WORK_DIR, 'package.json'))) {
@@ -135,7 +133,6 @@ class DeployManager {
 
             const branchDestPath = path.join(DEST_DIR, safeBranch);
 
-            // Remove old deployment and copy new build directory
             await fs.rm(branchDestPath, { recursive: true, force: true });
             await fs.mkdir(branchDestPath, { recursive: true });
             await execAsync(`cp -a dist/* "${branchDestPath}/"`, { cwd: WORK_DIR });
@@ -190,16 +187,12 @@ class DeployManager {
 
             let stateChanged = false;
             const activeSafeBranches = [];
-
-            // 1. Process branches sequentially
             for (const [branch, remoteHash] of Object.entries(remoteBranches)) {
                 const safeBranch = this.sanitizeBranchName(branch);
                 activeSafeBranches.push(safeBranch);
 
                 if (localState[safeBranch] !== remoteHash) {
                     this.log(`New commit detected on '${branch}' (${remoteHash})`);
-
-                    // Immediately update state to avoid infinite build loops if the build crashes
                     localState[safeBranch] = remoteHash;
                     stateChanged = true;
 
@@ -207,13 +200,8 @@ class DeployManager {
                 }
             }
 
-            // 2. Remove obsolete branches
             await this.cleanup(activeSafeBranches);
-
-            // 3. Generate Dashboard /branches.json
             await this.generateDashboard(activeSafeBranches);
-
-            // 4. Save new state
             if (stateChanged) {
                 await this.saveState(localState);
             }
