@@ -1,0 +1,12 @@
+{
+    "name": "react-preview-node",
+    "version": "1.0.0",
+    "description": "React deployment manager and web server",
+    "type": "module",
+    "scripts": {
+        "start": "node server.mjs"
+    },
+    "dependencies": {
+        "express": "^4.18.2"
+    }
+}
