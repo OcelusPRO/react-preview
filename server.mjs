@@ -8,7 +8,13 @@ import util from 'util';
 const execAsync = util.promisify(exec);
 
 const REPO_URL = process.env.REPO_URL;
-const PROJECT_NAME = process.env.PROJECT_NAME;
+
+if (!REPO_URL) {
+    console.error("[ERROR] REPO_URL environment variable is required.");
+    process.exit(1);
+}
+
+const PROJECT_NAME = REPO_URL.split('/').pop().replace('.git', '');
 const GIT_TOKEN = process.env.GIT_TOKEN || '';
 const INTERVAL_MS = (parseInt(process.env.INTERVAL_SECONDS) || 120) * 1000;
 const HTTP_PORT = 80;
@@ -17,11 +23,6 @@ const BASE_WWW_DIR = '/var/www/html';
 const WORK_DIR = `/tmp/workdir/${PROJECT_NAME}`;
 const DEST_DIR = path.join(BASE_WWW_DIR, PROJECT_NAME);
 const STATE_FILE = path.join(DEST_DIR, 'state.json');
-
-if (!REPO_URL || !PROJECT_NAME) {
-    console.error("[ERROR] REPO_URL and PROJECT_NAME environment variables are required.");
-    process.exit(1);
-}
 
 const AUTH_REPO_URL = (GIT_TOKEN && REPO_URL.startsWith('https://'))
     ? REPO_URL.replace('https://', `https://${GIT_TOKEN}@`)
@@ -44,13 +45,12 @@ app.use('/:project/:branch', (req, res, next) => {
 });
 
 app.use((req, res) => {
-    res.status(404).send('404 - Not Found or Branch Not Deployed Yet');
+    res.status(404).send('404 - Not Found');
 });
 
 app.listen(HTTP_PORT, () => {
-    console.log(`[SERVER] Web server listening on port ${HTTP_PORT}`);
+    console.log(`[SERVER] Listening on port ${HTTP_PORT}`);
 });
-
 
 class DeployManager {
     log(message) {
@@ -68,9 +68,7 @@ class DeployManager {
                 const data = await fs.readFile(STATE_FILE, 'utf-8');
                 return JSON.parse(data);
             }
-        } catch (error) {
-            this.log(`Warning: Could not read state file, starting fresh.`);
-        }
+        } catch (error) {}
         return {};
     }
 
@@ -83,7 +81,7 @@ class DeployManager {
         await fs.mkdir(DEST_DIR, { recursive: true });
 
         if (!existsSync(path.join(WORK_DIR, '.git'))) {
-            this.log(`Performing initial git clone...`);
+            this.log(`Initial git clone...`);
             await execAsync(`git clone "${AUTH_REPO_URL}" . --quiet`, { cwd: WORK_DIR });
         }
     }
@@ -105,20 +103,18 @@ class DeployManager {
     }
 
     async buildBranch(branch, safeBranch) {
-        this.log(`Starting build for branch: ${branch}`);
+        this.log(`Building branch: ${branch}`);
 
         try {
             await execAsync(`git clean -fdx && git reset --hard && git checkout -B "${branch}" "origin/${branch}" --quiet`, { cwd: WORK_DIR });
 
             if (!existsSync(path.join(WORK_DIR, 'package.json'))) {
-                this.log(`No package.json found in branch ${branch}, skipping.`);
                 return false;
             }
 
             const hasPackageLock = existsSync(path.join(WORK_DIR, 'package-lock.json'));
             const installCmd = hasPackageLock ? 'npm ci --silent --prefer-offline' : 'npm install --silent --prefer-offline';
 
-            this.log(`Installing dependencies for ${branch}...`);
             await execAsync(installCmd, { cwd: WORK_DIR });
 
             const basePath = `/${PROJECT_NAME}/${safeBranch}/`;
@@ -128,7 +124,6 @@ class DeployManager {
                 PUBLIC_URL: basePath
             };
 
-            this.log(`Compiling branch ${branch} with base path ${basePath}...`);
             await execAsync(`npm run build -- --base="${basePath}"`, { cwd: WORK_DIR, env });
 
             const branchDestPath = path.join(DEST_DIR, safeBranch);
@@ -137,10 +132,10 @@ class DeployManager {
             await fs.mkdir(branchDestPath, { recursive: true });
             await execAsync(`cp -a dist/* "${branchDestPath}/"`, { cwd: WORK_DIR });
 
-            this.log(`Successfully deployed ${branch} to ${basePath}`);
+            this.log(`Deployed ${branch} to ${basePath}`);
             return true;
         } catch (error) {
-            this.log(`Build failed for ${branch}. Error: ${error.message}`);
+            this.log(`Build failed for ${branch}: ${error.message}`);
             return false;
         }
     }
@@ -149,7 +144,6 @@ class DeployManager {
         const dirs = await fs.readdir(DEST_DIR, { withFileTypes: true });
         for (const dirent of dirs) {
             if (dirent.isDirectory() && !activeSafeBranches.includes(dirent.name)) {
-                this.log(`Removing deleted branch directory: ${dirent.name}`);
                 await fs.rm(path.join(DEST_DIR, dirent.name), { recursive: true, force: true });
             }
         }
@@ -163,9 +157,7 @@ class DeployManager {
             if (existsSync('/app/index.html')) {
                 await fs.copyFile('/app/index.html', indexPath);
             }
-        } catch (e) {
-            this.log(`Warning: Could not copy dashboard index.html template.`);
-        }
+        } catch (e) {}
 
         const branchesData = {
             base_path: `/${PROJECT_NAME}`,
@@ -187,12 +179,14 @@ class DeployManager {
 
             let stateChanged = false;
             const activeSafeBranches = [];
+
             for (const [branch, remoteHash] of Object.entries(remoteBranches)) {
                 const safeBranch = this.sanitizeBranchName(branch);
                 activeSafeBranches.push(safeBranch);
 
                 if (localState[safeBranch] !== remoteHash) {
-                    this.log(`New commit detected on '${branch}' (${remoteHash})`);
+                    this.log(`New commit on '${branch}' (${remoteHash})`);
+
                     localState[safeBranch] = remoteHash;
                     stateChanged = true;
 
@@ -202,17 +196,18 @@ class DeployManager {
 
             await this.cleanup(activeSafeBranches);
             await this.generateDashboard(activeSafeBranches);
+
             if (stateChanged) {
                 await this.saveState(localState);
             }
 
         } catch (error) {
-            this.log(`Critical synchronization error: ${error.message}`);
+            this.log(`Sync error: ${error.message}`);
         }
     }
 
     start() {
-        this.log(`Deployment manager started. Checking git repository every ${INTERVAL_MS / 1000} seconds.`);
+        this.log(`Manager started. Interval: ${INTERVAL_MS / 1000}s`);
         this.sync();
         setInterval(() => this.sync(), INTERVAL_MS);
     }
