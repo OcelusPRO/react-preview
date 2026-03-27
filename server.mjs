@@ -17,6 +17,7 @@ if (!REPO_URL) {
 const PROJECT_NAME = REPO_URL.split('/').pop().replace('.git', '');
 const GIT_TOKEN = process.env.GIT_TOKEN || '';
 const INTERVAL_MS = (parseInt(process.env.INTERVAL_SECONDS) || 120) * 1000;
+const BRANCH_REGEX = process.env.BRANCH_REGEX ? new RegExp(process.env.BRANCH_REGEX) : null;
 const HTTP_PORT = 80;
 
 const BASE_WWW_DIR = '/var/www/html';
@@ -181,6 +182,10 @@ class DeployManager {
             const activeSafeBranches = [];
 
             for (const [branch, remoteHash] of Object.entries(remoteBranches)) {
+                if (BRANCH_REGEX && !BRANCH_REGEX.test(branch)) {
+                    continue;
+                }
+
                 const safeBranch = this.sanitizeBranchName(branch);
                 activeSafeBranches.push(safeBranch);
 
