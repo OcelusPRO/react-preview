@@ -1,89 +1,90 @@
 <h1>React Preview Server</h1>
 
-<p>A lightweight, standalone, and self-hosted tool to automatically deploy and serve preview environments for every branch of your React/Vite application.</p>
+<p>A lightweight, standalone, and self-hosted tool to automatically deploy and serve preview environments for every branch of your React/Vite applications.</p>
 
-<p>Fully powered by Node.js and Express, this project replaces complex infrastructures with a simple "plug &amp; play" Docker container. Run it, provide a Git URL, and it handles the rest.</p>
+<p>Fully powered by Node.js and Express, this project replaces complex infrastructures with a simple "plug &amp; play" Docker container. It natively supports multiple repositories through a JSON configuration file.</p>
 
 <h2>🚀 Features</h2>
 <ul>
-    <li><strong>Automatic Deployment (Polling):</strong> Monitors the Git repository and automatically builds new branches or commits.</li>
-    <li><strong>Built-in Web Server:</strong> Uses Express.js to serve static files efficiently, without relying on Nginx.</li>
-    <li><strong>Native SPA Support:</strong> Automatic and smart redirection to <code>index.html</code> to perfectly support client-side routing (React Router, Vue Router).</li>
-    <li><strong>Dynamic Dashboard:</strong> Generates a home page (<code>index.html</code>) listing all currently deployed and accessible branches.</li>
-    <li><strong>Auto-cleanup:</strong> Detects deleted branches on the remote repository and automatically frees up disk space.</li>
-    <li><strong>Persistent NPM Cache:</strong> Significantly speeds up build times by sharing a dependency cache across different branches.</li>
+    <li><strong>Multi-Project Support:</strong> Track and deploy multiple Git repositories simultaneously using a single <code>projects.json</code> configuration.</li>
+    <li><strong>Automatic Deployment:</strong> Monitors Git repositories and builds new branches or commits via polling.</li>
+    <li><strong>Built-in Web Server:</strong> Uses Express.js to serve static files efficiently.</li>
+    <li><strong>Native SPA Support:</strong> Automatic redirection to <code>index.html</code> for client-side routing (React Router, Vue Router).</li>
+    <li><strong>Dynamic Dashboard:</strong> Generates a home page listing all currently deployed branches per project.</li>
+    <li><strong>Persistent Cache:</strong> Speeds up build times by sharing the NPM dependency cache.</li>
 </ul>
 
 <h2>🛠️ Prerequisites</h2>
 <ul>
     <li>Docker installed on the host machine.</li>
-    <li>A Git repository containing a web application (React, Vite, etc.) configured to be built via <code>npm run build</code> and outputting a <code>dist/</code> folder.</li>
+    <li>Git repository(ies) configured to be built via <code>npm run build</code> and outputting a <code>dist/</code> folder.</li>
 </ul>
 
-<h2>📦 Quick Deployment</h2>
-<p>Build the local Docker image, then run the container injecting your environment variables.</p>
+<h2>⚙️ Configuration</h2>
+<p>You can configure the server using environment variables for a <strong>single project</strong>, or a <code>projects.json</code> file for <strong>multiple projects</strong>.</p>
 
-<h3>1. Image Build</h3>
-<pre><code>docker build -t react-preview-node .</code></pre>
-
-<h3>2. Run Container</h3>
-<pre><code>docker run -d \
-  -e REPO_URL="https://github.com/your-account/your-app.git" \
-  -e PROJECT_NAME="myproject" \
-  -p 8080:80 \
-  --name react-preview \
-  react-preview-node</code></pre>
-
-<p>Your central dashboard grouping all compiled branches will be accessible at <code>http://localhost:8080/</code>.</p>
-
-<h2>⚙️ Environment Variables</h2>
+<h3>Option 1: Single Project (Environment Variables)</h3>
 <table>
     <thead>
         <tr>
             <th>Variable</th>
             <th>Description</th>
-            <th>Default</th>
             <th>Required</th>
         </tr>
     </thead>
     <tbody>
         <tr>
             <td><code>REPO_URL</code></td>
-            <td>The HTTPS URL of your Git repository.</td>
-            <td>-</td>
-            <td><strong>Yes</strong></td>
-        </tr>
-        <tr>
-            <td><code>PROJECT_NAME</code></td>
-            <td>The project name. Used to isolate the project and generate paths (e.g., /PROJECT_NAME/branch).</td>
-            <td>-</td>
+            <td>HTTPS URL of your Git repository.</td>
             <td><strong>Yes</strong></td>
         </tr>
         <tr>
             <td><code>GIT_TOKEN</code></td>
-            <td>A Personal Access Token (PAT) if your Git repository is private.</td>
-            <td><code>""</code></td>
+            <td>Personal Access Token (PAT) for private repositories.</td>
+            <td>No</td>
+        </tr>
+        <tr>
+            <td><code>BRANCH_REGEX</code></td>
+            <td>Regex to filter branches (e.g., <code>^feature/</code>).</td>
             <td>No</td>
         </tr>
         <tr>
             <td><code>INTERVAL_SECONDS</code></td>
-            <td>The wait time (in seconds) between each check for updates on Git.</td>
-            <td><code>120</code></td>
+            <td>Polling interval in seconds (default: 120).</td>
             <td>No</td>
         </tr>
     </tbody>
 </table>
 
-<h2>🏗️ How it works under the hood</h2>
-<ol>
-    <li>On startup, the script clones the repository into an isolated environment (<code>/tmp/workdir</code>).</li>
-    <li>At regular intervals, it polls GitHub to fetch the commit identifiers (hashes) of all branches.</li>
-    <li>If a new commit is detected, the manager installs dependencies (favoring offline mode via cache) and runs <code>npm run build</code>.</li>
-    <li>The resulting static build is moved to the Web server's public folder (<code>/var/www/html/PROJECT_NAME/BRANCH</code>).</li>
-    <li>The Express server intercepts web traffic. It directly serves physical folders when they exist. If it's a SPA (virtual) route, it seamlessly redirects the request to the corresponding branch's <code>index.html</code> file.</li>
-</ol>
+<pre><code>docker run -d \
+  -e REPO_URL="https://github.com/your-account/your-app.git" \
+  -p 8080:80 \
+  --name react-preview \
+  react-preview-node</code></pre>
+
+<h3>Option 2: Multiple Projects (projects.json)</h3>
+<p>Create a <code>projects.json</code> file on your host machine to track multiple repositories.</p>
+
+<pre><code>[
+  {
+    "REPO_URL": "https://github.com/your-account/app-one.git",
+    "GIT_TOKEN": "your_token",
+    "BRANCH_REGEX": "^(master|feature)"
+  },
+  {
+    "REPO_URL": "https://github.com/your-account/app-two.git"
+  }
+]</code></pre>
+
+<p>Run the container by mounting this file:</p>
+
+<pre><code>docker run -d \
+  -v $(pwd)/projects.json:/projects.json \
+  -p 8080:80 \
+  --name react-preview \
+  react-preview-node</code></pre>
 
 <h2>📝 URL Structure</h2>
-<p>The application automatically injects the <code>VITE_BASE_PATH</code> and <code>PUBLIC_URL</code> variables during the build so that your React application's internal paths match the deployment structure:</p>
+<p>The application automatically routes projects based on the repository name extracted from the <code>REPO_URL</code>:</p>
 
 <pre><code>http://your-domain.com/[PROJECT_NAME]/[BRANCH_NAME]/</code></pre>
